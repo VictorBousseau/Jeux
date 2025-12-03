@@ -19,7 +19,7 @@ export interface Level {
 
 export function generateLevel(size: number = 8): Level {
     let attempts = 0;
-    while (attempts < 1000) {
+    while (attempts < 20000) {
         attempts++;
         // 1. Generate a valid queen placement (solution)
         const queens = generateValidQueens(size);
@@ -44,7 +44,7 @@ export function generateLevel(size: number = 8): Level {
             return { size, regions, solution: queens };
         }
     }
-    throw new Error("Failed to generate unique level after 1000 attempts");
+    throw new Error(`Failed to generate unique level after ${attempts} attempts`);
 }
 
 function generateValidQueens(size: number): { row: number; col: number }[] | null {

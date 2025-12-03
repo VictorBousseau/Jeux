@@ -8,6 +8,7 @@ interface Score {
     username: string;
     timeSeconds: number; // This now stores milliseconds despite the name (legacy)
     gridSize: number;
+    userId: string;
     createdAt: any;
 }
 
@@ -20,33 +21,26 @@ export function Leaderboard({ gridSize, refreshTrigger }: LeaderboardProps) {
     const [scores, setScores] = useState<Score[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [userId, setUserId] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setUserId(user ? user.uid : null);
+            setCurrentUserId(user ? user.uid : null);
         });
         return () => unsubscribe();
     }, []);
 
     useEffect(() => {
         const fetchScores = async () => {
-            if (!userId) {
-                setScores([]);
-                setLoading(false);
-                return;
-            }
-
             setLoading(true);
             setError("");
             try {
                 const q = query(
                     collection(db, "scores"),
                     where("gridSize", "==", gridSize),
-                    where("userId", "==", userId),
                     where("timeSeconds", ">", 1000), // Filter out legacy scores (stored as seconds)
                     orderBy("timeSeconds", "asc"),
-                    limit(3)
+                    limit(10)
                 );
                 const querySnapshot = await getDocs(q);
                 const fetchedScores: Score[] = [];
@@ -63,21 +57,20 @@ export function Leaderboard({ gridSize, refreshTrigger }: LeaderboardProps) {
         };
 
         fetchScores();
-    }, [gridSize, refreshTrigger, userId]);
+    }, [gridSize, refreshTrigger]);
 
-    if (!userId) return <div className="text-sm text-gray-500 italic">Log in to see your best scores.</div>;
-    if (loading) return <div className="text-sm text-gray-500">Loading your best scores...</div>;
+    if (loading) return <div className="text-sm text-gray-500">Loading top scores...</div>;
     if (error) return <div className="text-sm text-red-500">Error loading scores: {error}</div>;
 
     return (
         <div className="bg-white p-4 rounded-lg shadow-md w-full max-w-sm">
-            <h3 className="font-bold text-lg mb-3 border-b pb-2">Your Top 3 Scores ({gridSize}x{gridSize})</h3>
+            <h3 className="font-bold text-lg mb-3 border-b pb-2">Top 10 Scores ({gridSize}x{gridSize})</h3>
             {scores.length === 0 ? (
-                <p className="text-gray-500 text-sm italic">No scores yet. Play to set a record!</p>
+                <p className="text-gray-500 text-sm italic">No scores yet. Be the first!</p>
             ) : (
                 <ul className="space-y-2">
                     {scores.map((score, index) => (
-                        <li key={score.id} className="flex justify-between text-sm items-center">
+                        <li key={score.id} className={`flex justify-between text-sm items-center ${score.userId === currentUserId ? 'bg-blue-50 p-1 rounded' : ''}`}>
                             <span className="flex items-center gap-2">
                                 <span className={`
                     w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold

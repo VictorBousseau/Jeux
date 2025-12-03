@@ -9,16 +9,16 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 const REGION_COLORS = [
-    "#ffadad", // pastel red
-    "#ffd6a5", // pastel orange
-    "#fdffb6", // pastel yellow
-    "#caffbf", // pastel green
-    "#9bf6ff", // pastel cyan
-    "#a0c4ff", // pastel blue
-    "#bdb2ff", // pastel purple
-    "#ffc6ff", // pastel pink
-    "#fffffc", // pastel white/cream
-    "#d4d4d4", // light gray
+    "#E69F00", // Orange
+    "#56B4E9", // Sky Blue
+    "#009E73", // Bluish Green
+    "#F0E442", // Yellow
+    "#0072B2", // Blue
+    "#D55E00", // Vermilion
+    "#CC79A7", // Reddish Purple
+    "#999999", // Grey
+    "#F5C710", // Gold
+    "#FFFFFF", // White
 ];
 
 export function Grid() {
@@ -34,6 +34,11 @@ export function Grid() {
     const [isRunning, setIsRunning] = useState(false);
     const [refreshLeaderboard, setRefreshLeaderboard] = useState(0);
 
+    const [savingScore, setSavingScore] = useState(false);
+    const [saveError, setSaveError] = useState("");
+
+    const [error, setError] = useState("");
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
         return () => unsubscribe();
@@ -45,6 +50,7 @@ export function Grid() {
 
     const startNewGame = (size: number = gridSize) => {
         setLoading(true);
+        setError(""); // Reset error
         setWon(false);
         setTime(0);
         setIsRunning(false); // Will start on first click
@@ -64,8 +70,9 @@ export function Grid() {
                     } as CellType))
                 );
                 setBoard(initialBoard);
-            } catch (e) {
+            } catch (e: any) {
                 console.error(e);
+                setError(e.message || "Failed to generate level");
             } finally {
                 setLoading(false);
             }
@@ -188,9 +195,6 @@ export function Grid() {
         }
     };
 
-    const [savingScore, setSavingScore] = useState(false);
-    const [saveError, setSaveError] = useState("");
-
     const handleWin = async () => {
         setWon(true);
         setIsRunning(false);
@@ -216,8 +220,18 @@ export function Grid() {
         }
     };
 
-    if (loading || !level) {
-        return <div className="flex items-center justify-center h-64 text-xl">Generating Level...</div>;
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                <div className="text-red-500 text-xl">{error}</div>
+                <button
+                    onClick={() => startNewGame(gridSize)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Try Again
+                </button>
+            </div>
+        );
     }
 
     return (
@@ -236,7 +250,6 @@ export function Grid() {
                             <option value={7}>7x7</option>
                             <option value={8}>8x8</option>
                             <option value={9}>9x9</option>
-                            <option value={10}>10x10</option>
                         </select>
                         <button
                             onClick={() => startNewGame(gridSize)}
@@ -248,29 +261,35 @@ export function Grid() {
                 </div>
 
                 <div
-                    className="grid gap-0 border-2 border-gray-800"
+                    className="grid gap-0 border-2 border-gray-800 relative"
                     style={{
-                        gridTemplateColumns: `repeat(${level.size}, minmax(0, 1fr))`,
-                        gridTemplateRows: `repeat(${level.size}, minmax(0, 1fr))`,
+                        gridTemplateColumns: `repeat(${level?.size || gridSize}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${level?.size || gridSize}, minmax(0, 1fr))`,
                         width: 'min(90vw, 500px)',
                         height: 'min(90vw, 500px)'
                     }}
                 >
-                    {board.map((row, r) =>
-                        row.map((cell, c) => (
-                            <Cell
-                                key={`${r}-${c}`}
-                                cell={cell}
-                                color={REGION_COLORS[cell.regionId % REGION_COLORS.length]}
-                                onClick={() => handleCellClick(r, c)}
-                                onRightClick={(e) => handleRightClick(e, r, c)}
-                            />
-                        ))
+                    {(loading || !level) ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
+                            <div className="text-xl font-bold text-gray-600">Generating Level...</div>
+                        </div>
+                    ) : (
+                        board.map((row, r) =>
+                            row.map((cell, c) => (
+                                <Cell
+                                    key={`${r}-${c}`}
+                                    cell={cell}
+                                    color={REGION_COLORS[cell.regionId % REGION_COLORS.length]}
+                                    onClick={() => handleCellClick(r, c)}
+                                    onRightClick={(e) => handleRightClick(e, r, c)}
+                                />
+                            ))
+                        )
                     )}
                 </div>
 
                 <div className="text-sm text-gray-500 max-w-md text-center">
-                    Place {level.size} queens. One per row, column, and color. Queens cannot touch.
+                    Place {level?.size || gridSize} queens. One per row, column, and color. Queens cannot touch.
                     <br />
                     <span className="text-xs">(Left click to place Queen, Right click to place X)</span>
                 </div>

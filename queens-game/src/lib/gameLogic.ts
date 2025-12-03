@@ -28,6 +28,16 @@ export function generateLevel(size: number = 8): Level {
         // 2. Generate regions based on queens
         const regions = generateRegions(size, queens);
 
+        // 2.5 Validate region constraints (max 1 singleton region)
+        const regionSizes = new Array(size).fill(0);
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                regionSizes[regions[r][c]]++;
+            }
+        }
+        const singletons = regionSizes.filter(s => s === 1).length;
+        if (singletons > 1) continue;
+
         // 3. Validate uniqueness
         const solutions = solve(size, regions, 2); // Stop if we find more than 1
         if (solutions.length === 1) {

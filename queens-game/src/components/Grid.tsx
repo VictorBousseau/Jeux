@@ -22,6 +22,7 @@ const REGION_COLORS = [
 ];
 
 export function Grid() {
+    const [gridSize, setGridSize] = useState(8);
     const [level, setLevel] = useState<Level | null>(null);
     const [board, setBoard] = useState<CellType[][]>([]);
     const [loading, setLoading] = useState(true);
@@ -39,10 +40,10 @@ export function Grid() {
     }, []);
 
     useEffect(() => {
-        startNewGame();
-    }, []);
+        startNewGame(gridSize);
+    }, [gridSize]);
 
-    const startNewGame = () => {
+    const startNewGame = (size: number = gridSize) => {
         setLoading(true);
         setWon(false);
         setTime(0);
@@ -51,7 +52,7 @@ export function Grid() {
         // Use timeout to allow UI to render loading state
         setTimeout(() => {
             try {
-                const newLevel = generateLevel(8);
+                const newLevel = generateLevel(size);
                 setLevel(newLevel);
                 const initialBoard = newLevel.regions.map((row, r) =>
                     row.map((regionId, c) => ({
@@ -71,6 +72,12 @@ export function Grid() {
         }, 100);
     };
 
+    useEffect(() => {
+        if (board.length > 0 && !won) {
+            checkWin(board);
+        }
+    }, [board]);
+
     const handleCellClick = (r: number, c: number) => {
         if (won) return;
         if (!isRunning) setIsRunning(true);
@@ -86,7 +93,6 @@ export function Grid() {
             }
 
             updateErrors(newBoard);
-            checkWin(newBoard);
             return newBoard;
         });
     };
@@ -107,7 +113,6 @@ export function Grid() {
             }
 
             updateErrors(newBoard);
-            checkWin(newBoard);
             return newBoard;
         });
     };
@@ -197,7 +202,7 @@ export function Grid() {
                 await addDoc(collection(db, "scores"), {
                     username: user.displayName || user.email?.split('@')[0] || "Anonymous",
                     timeSeconds: time,
-                    gridSize: 8,
+                    gridSize: gridSize,
                     userId: user.uid,
                     createdAt: serverTimestamp()
                 });
@@ -222,12 +227,24 @@ export function Grid() {
                 <div className="flex items-center justify-between w-full max-w-md">
                     <h1 className="text-2xl font-bold text-gray-800">Queens</h1>
                     <Timer isRunning={isRunning} onTimeUpdate={setTime} />
-                    <button
-                        onClick={startNewGame}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        New Game
-                    </button>
+                    <div className="flex gap-2">
+                        <select
+                            value={gridSize}
+                            onChange={(e) => setGridSize(Number(e.target.value))}
+                            className="px-2 py-2 border rounded-lg bg-white text-gray-700 text-sm"
+                        >
+                            <option value={7}>7x7</option>
+                            <option value={8}>8x8</option>
+                            <option value={9}>9x9</option>
+                            <option value={10}>10x10</option>
+                        </select>
+                        <button
+                            onClick={() => startNewGame(gridSize)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        >
+                            New Game
+                        </button>
+                    </div>
                 </div>
 
                 <div
@@ -262,7 +279,7 @@ export function Grid() {
             {/* Right Column: Auth & Leaderboard */}
             <div className="flex flex-col gap-6 w-full max-w-sm">
                 <Auth user={user} />
-                <Leaderboard gridSize={8} refreshTrigger={refreshLeaderboard} />
+                <Leaderboard gridSize={gridSize} refreshTrigger={refreshLeaderboard} />
             </div>
 
             {won && (
@@ -285,7 +302,7 @@ export function Grid() {
                         )}
 
                         <button
-                            onClick={startNewGame}
+                            onClick={() => startNewGame(gridSize)}
                             className="px-6 py-3 bg-blue-600 text-white text-lg rounded-lg hover:bg-blue-700 transition-colors"
                         >
                             Play Again

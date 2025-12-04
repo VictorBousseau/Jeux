@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'bousseauvictor49@gmail.com';
+    }
+
+    match /scores/{scoreId} {
+      // Tout le monde peut lire les scores (pour le classement)
+      allow read: if true;
+      
+      // On ne peut créer un score que si :
+      // 1. On est connecté
+      // 2. L'ID utilisateur correspond à notre compte
+      // 3. Les données sont valides (temps et taille de grille sont des nombres)
+      allow create: if request.auth != null 
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.timeSeconds is number
+                    && request.resource.data.gridSize is number;
+
+      // Allow admin to delete scores
+      allow delete: if isAdmin();
+      
+      // Default deny update
+      allow update: if false;
+    }
+    
+    match /dailyConfig/{date} {
+      allow read: if true;
+      // Allow admin to create/update daily config
+      allow write: if isAdmin();
+    }
+  }
+}

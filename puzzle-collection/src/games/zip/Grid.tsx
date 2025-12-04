@@ -4,9 +4,11 @@ import { generateLevel, isValidMove, checkWin, type ZipCellState, type Level } f
 import { Timer } from "../../components/Timer";
 import { Auth } from "../../components/Auth";
 import { Leaderboard } from "../../components/Leaderboard";
+import { AdminPanel } from "../../components/AdminPanel";
+import { useAdmin } from "../../hooks/useAdmin";
 import { auth, db } from "../../lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { addDoc, collection, serverTimestamp, query, where, getDocs } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp, query, where, getDocs, doc, onSnapshot } from "firebase/firestore";
 
 export function Grid() {
     const [level, setLevel] = useState<Level | null>(null);
@@ -20,6 +22,7 @@ export function Grid() {
 
     // Auth & Timer state
     const [user, setUser] = useState<User | null>(null);
+    const isAdmin = useAdmin(user);
     const [time, setTime] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
     const [refreshLeaderboard, setRefreshLeaderboard] = useState(0);
@@ -30,10 +33,24 @@ export function Grid() {
     const [gameMode, setGameMode] = useState<'practice' | 'daily'>('practice');
     const [dailyStarted, setDailyStarted] = useState(false);
     const [hasPlayedDaily, setHasPlayedDaily] = useState(false);
+    const [dailySeedVersion, setDailySeedVersion] = useState(0);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
         return () => unsubscribe();
+    }, []);
+
+    // Listen for daily config changes
+    useEffect(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const unsub = onSnapshot(doc(db, "dailyConfig", today), (doc) => {
+            if (doc.exists()) {
+                setDailySeedVersion(doc.data().seedVersion || 0);
+            } else {
+                setDailySeedVersion(0);
+            }
+        });
+        return () => unsub();
     }, []);
 
     useEffect(() => {
@@ -53,16 +70,19 @@ export function Grid() {
             }
         };
         checkDailyStatus();
-    }, [gameMode, user]);
+    }, [gameMode, user, refreshLeaderboard]);
 
     useEffect(() => {
         if (gameMode === 'daily') {
             setGridSize(9); // Fixed size for daily
             setDailyStarted(false);
+            if (dailyStarted) {
+                startNewGame(9);
+            }
         } else {
             startNewGame(gridSize);
         }
-    }, [gameMode]);
+    }, [gameMode, dailySeedVersion]);
 
     useEffect(() => {
         if (gameMode === 'practice') {
@@ -81,7 +101,7 @@ export function Grid() {
                 let seed: string | undefined;
                 if (gameMode === 'daily') {
                     const today = new Date().toISOString().split('T')[0];
-                    seed = "zip-" + today;
+                    seed = "zip-" + today + (dailySeedVersion > 0 ? `-v${dailySeedVersion}` : '');
                 }
 
                 const newLevel = generateLevel(size, seed);
@@ -194,6 +214,9 @@ export function Grid() {
                 }
 
                 await addDoc(collection(db, "scores"), scoreData);
+                if (gameMode === 'daily') {
+                    setHasPlayedDaily(true);
+                }
                 setRefreshLeaderboard(prev => prev + 1);
             } catch (e: any) {
                 console.error("Error saving score:", e);
@@ -284,7 +307,7 @@ export function Grid() {
                         height: 'min(90vw, 500px)'
                     }}
                 >
-                    {(loading || !level || (gameMode === 'daily' && !dailyStarted)) ? (
+                    {(loading || !level || (gameMode === 'daily' && (!dailyStarted || hasPlayedDaily))) ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/98 z-10 p-8 text-center backdrop-blur-sm">
                             {loading ? (
                                 <div className="flex flex-col items-center gap-4">
@@ -365,6 +388,7 @@ export function Grid() {
 
             {/* Right Column: Auth & Leaderboard */}
             <div className="flex flex-col gap-6 w-full max-w-sm lg:sticky lg:top-8">
+                {isAdmin && <AdminPanel />}
                 <Auth user={user} />
                 <Leaderboard
                     gridSize={gridSize}
@@ -395,10 +419,16 @@ export function Grid() {
                         )}
 
                         <button
-                            onClick={() => startNewGame(gridSize)}
+                            onClick={() => {
+                                if (gameMode === 'daily') {
+                                    setWon(false);
+                                } else {
+                                    startNewGame(gridSize);
+                                }
+                            }}
                             className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors shadow-lg"
                         >
-                            Play Again
+                            {gameMode === 'daily' ? 'Close' : 'Play Again'}
                         </button>
                     </div>
                 </div>
